@@ -659,7 +659,7 @@ class dumper {
     			    $this->file_cache .= $str;
     			}
     			else{
-    				$string = $this->file_cache . substr($str, 0, $pos);
+    				$string = $this->file_cache . substr($str, 0, $pos + 1);
     				$this->file_cache = substr($str, $pos + 1);
     			}
     		}
