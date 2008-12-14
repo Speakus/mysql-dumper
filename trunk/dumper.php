@@ -53,6 +53,7 @@ define('ONLY_CREATE', 'MRG_MyISAM,MERGE,HEAP,MEMORY');
 define('GS', 0);
 
 // End configuration block - start code block
+$dumper_file = basename(__FILE__);
 
 $is_safe_mode = ini_get('safe_mode') == '1' ? 1 : 0;
 if (!$is_safe_mode && function_exists('set_time_limit')) set_time_limit(TIME_LIMIT);
@@ -71,8 +72,7 @@ $error = '';
 if (!empty($_POST['login']) && isset($_POST['pass'])) {
 	if (@mysql_connect(DBHOST, $_POST['login'], $_POST['pass'])){
 		setcookie("sxd", base64_encode("SKD101:{$_POST['login']}:{$_POST['pass']}"));
-		header("Location: dumper.php");
-		mysql_close();
+		header("Location: $dumper_file");
 		exit;
 	}
 	else{
@@ -91,12 +91,12 @@ elseif (!empty($_COOKIE['sxd'])) {
 
 if (!$auth || (isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] == 'reload')) {
 	setcookie("sxd");
-	echo tpl_page(tpl_auth($error ? tpl_error($error) : ''), "<SCRIPT>if (jsEnabled) {document.write('<INPUT TYPE=submit VALUE=Применить>');}</SCRIPT>");
-	echo "<SCRIPT>document.getElementById('timer').innerHTML = '" . round(array_sum(explode(' ', microtime())) - $timer, 4) . " сек.'</SCRIPT>";
+	echo tpl_page(tpl_auth($error ? tpl_error($error) : ''), "<SCRIPT>if (jsEnabled) {document.write('<INPUT TYPE=submit VALUE=Apply>');}</SCRIPT>");
+	echo "<SCRIPT>document.getElementById('timer').innerHTML = '" . round(array_sum(explode(' ', microtime())) - $timer, 4) . " sec.'</SCRIPT>";
 	exit;
 }
 if (!file_exists(PATH) && !$is_safe_mode) {
-    mkdir(PATH, 0777) || trigger_error("Не удалось создать каталог для бекапа", E_USER_ERROR);
+    mkdir(PATH, 0777) || trigger_error("Can't create dir for backup", E_USER_ERROR);
 }
 
 $SK = new dumper();
@@ -119,7 +119,7 @@ switch($action){
 
 mysql_close();
 
-echo "<SCRIPT>document.getElementById('timer').innerHTML = '" . round(array_sum(explode(' ', microtime())) - $timer, 4) . " сек.'</SCRIPT>";
+echo "<SCRIPT>document.getElementById('timer').innerHTML = '" . round(array_sum(explode(' ', microtime())) - $timer, 4) . " sec.'</SCRIPT>";
 
 class dumper {
 	function dumper() {
@@ -156,8 +156,8 @@ class dumper {
 	function backup() {
 		if (!isset($_POST)) {$this->main();}
 		set_error_handler("SXD_errorHandler");
-		$buttons = "<A ID=save HREF='' STYLE='display: none;'>Скачать файл</A> &nbsp; <INPUT ID=back TYPE=button VALUE='Вернуться' DISABLED onClick=\"history.back();\">";
-		echo tpl_page(tpl_process("Создается резервная копия БД"), $buttons);
+		$buttons = "<A ID=save HREF='' STYLE='display: none;'>Download file</A> &nbsp; <INPUT ID=back TYPE=button VALUE='Back' DISABLED onClick=\"history.back();\">";
+		echo tpl_page(tpl_process("DB backup in progress"), $buttons);
 
 		$this->SET['last_action']     = 0;
 		$this->SET['last_db_backup']  = isset($_POST['db_backup']) ? $_POST['db_backup'] : '';
@@ -190,7 +190,7 @@ class dumper {
 			echo tpl_enableBack();
 		    exit;
 		}
-		echo tpl_l("Подключение к БД `{$db}`.");
+		echo tpl_l("Connection to DB `{$db}`.");
 		mysql_select_db($db) or trigger_error ("Не удается выбрать базу данных.<BR>" . mysql_error(), E_USER_ERROR);
 		$tables = array();
         $result = mysql_query("SHOW TABLES");
@@ -246,7 +246,7 @@ class dumper {
 		$info = $tabinfo[0] . $info;
 		$name = $db . '_' . date("Y-m-d_H-i");
         $fp = $this->fn_open($name, "w");
-		echo tpl_l("Создание файла с резервной копией БД:<BR>\\n  -  {$this->filename}");
+		echo tpl_l("Create file with backup of DB:<BR>\\n  -  {$this->filename}");
 		$this->fn_write($fp, "#SKD101|{$db}|{$tabs}|" . date("Y.m.d H:i:s") ."|{$info}\n\n");
 		$t=0;
 		echo tpl_l(str_repeat("-", 60));
@@ -269,16 +269,16 @@ class dumper {
 				}
 				else{
 					echo tpl_l('Кодировка соединения и таблицы не совпадает:', C_ERROR);
-					echo tpl_l('Таблица `'. $table .'` -> ' . $tab_charset[$table] . ' (соединение '  . CHARSET . ')', C_ERROR);
+					echo tpl_l('Table `'. $table .'` -> ' . $tab_charset[$table] . ' (соединение '  . CHARSET . ')', C_ERROR);
 				}
 			}
 			echo tpl_l("Обработка таблицы `{$table}` [" . fn_int($tabinfo[$table]) . "].");
-        	// Создание таблицы
+        	// Create table
 			$result = mysql_query("SHOW CREATE TABLE `{$table}`");
         	$tab = mysql_fetch_array($result);
 			$tab = preg_replace('/(default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP|DEFAULT CHARSET=\w+|COLLATE=\w+|character set \w+|collate \w+)/i', '/*!40101 \\1 */', $tab);
         	$this->fn_write($fp, "DROP TABLE IF EXISTS `{$table}`;\n{$tab[1]};\n\n");
-        	// Проверяем нужно ли дампить данные
+        	// Check: Need to dump data?
         	if (in_array($tab_type[$table], $this->only_create)) {
 				continue;
 			}
@@ -331,10 +331,10 @@ class dumper {
         echo tpl_s(1, 1);
         echo tpl_l(str_repeat("-", 60));
         $this->fn_close($fp);
-		echo tpl_l("Резервная копия БД `{$db}` создана.", C_RESULT);
+		echo tpl_l("Backup of DB: `{$db}` was created.", C_RESULT);
 		echo tpl_l("Размер БД:       " . round($this->size / 1048576, 2) . " МБ", C_RESULT);
 		$filesize = round(filesize(PATH . $this->filename) / 1048576, 2) . " МБ";
-		echo tpl_l("Размер файла: {$filesize}", C_RESULT);
+		echo tpl_l("File size: {$filesize}", C_RESULT);
 		echo tpl_l("Таблиц обработано: {$tabs}", C_RESULT);
 		echo tpl_l("Строк обработано:   " . fn_int($tabinfo[0]), C_RESULT);
 		echo "<SCRIPT>with (document.getElementById('save')) {style.display = ''; innerHTML = 'Скачать файл ({$filesize})'; href = '" . URL . $this->filename . "'; }document.getElementById('back').disabled = 0;</SCRIPT>";
@@ -356,11 +356,11 @@ class dumper {
 		$db = $this->SET['last_db_restore'];
 
 		if (!$db) {
-			echo tpl_l("ОШИБКА! Не указана база данных!", C_ERROR);
+			echo tpl_l("Error! Не указана база данных!", C_ERROR);
 			echo tpl_enableBack();
 		    exit;
 		}
-		echo tpl_l("Подключение к БД `{$db}`.");
+		echo tpl_l("Connect to DB `{$db}`.");
 		mysql_select_db($db) or trigger_error ("Не удается выбрать базу данных.<BR>" . mysql_error(), E_USER_ERROR);
 
 		// Определение формата файла
@@ -511,7 +511,7 @@ class dumper {
             	}
     			if ($execute) {
             		$q++;
-            		mysql_query($sql) or trigger_error ("Неправильный запрос.<BR>" . mysql_error(), E_USER_ERROR);
+            		mysql_query($sql) or trigger_error ("Wrong querry.<BR>" . mysql_error(), E_USER_ERROR);
 					if (preg_match("/^insert/i", $sql)) {
             		    $aff_rows += mysql_affected_rows();
             		}
@@ -524,10 +524,10 @@ class dumper {
 		echo $cache;
 		echo tpl_s(1 , 1);
 		echo tpl_l(str_repeat("-", 60));
-		echo tpl_l("БД восстановлена из резервной копии.", C_RESULT);
+		echo tpl_l("DB was restored from backup.", C_RESULT);
 		if (isset($info[3])) echo tpl_l("Дата создания копии: {$info[3]}", C_RESULT);
-		echo tpl_l("Запросов к БД: {$q}", C_RESULT);
-		echo tpl_l("Таблиц создано: {$tabs}", C_RESULT);
+		echo tpl_l("DB queries: {$q}", C_RESULT);
+		echo tpl_l("Tables was created: {$tabs}", C_RESULT);
 		echo tpl_l("Строк добавлено: {$aff_rows}", C_RESULT);
 
 		$this->tabs = $tabs;
@@ -562,7 +562,8 @@ class dumper {
 		$this->vars['comp_methods'] = $this->fn_select($this->comp_methods, $this->SET['comp_method']);
 		$this->vars['tables']       = $this->SET['tables'];
 		$this->vars['files']        = $this->fn_select($this->file_select(), '');
-		$buttons = "<INPUT TYPE=submit VALUE=Применить><INPUT TYPE=button VALUE=Выход onClick=\"location.href = 'dumper.php?reload'\">";
+		global $dumper_file;
+		$buttons = "<INPUT TYPE=submit VALUE=Apply><INPUT TYPE=button VALUE=Exit onClick=\"location.href = '".$dumper_file."?reload'\">";
 		echo tpl_page(tpl_main(), $buttons);
 	}
 
@@ -739,14 +740,14 @@ function fn_arr2str($array) {
 	return $str . ")";
 }
 
-// Шаблоны
+// Templates
 
 function tpl_page($content = '', $buttons = ''){
 return <<<HTML
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <HTML>
 <HEAD>
-<TITLE>Sypex Dumper Lite 1.0.8 | &copy; 2006 zapimir</TITLE>
+<TITLE>Mysql Dumper 1.0.9 | &copy; 2006 zapimir</TITLE>
 <META HTTP-EQUIV=Content-Type CONTENT="text/html; charset=utf-8">
 <STYLE TYPE="TEXT/CSS">
 <!--
@@ -782,7 +783,7 @@ fieldset {
 <TD ID=Header HEIGHT=20 BGCOLOR=#7A96DF STYLE="font-size: 13px; color: white; font-family: verdana, arial;
 padding-left: 5px; FILTER: progid:DXImageTransform.Microsoft.Gradient(gradientType=1,startColorStr=#7A96DF,endColorStr=#FBFBFD)"
 TITLE='&copy; 2003-2006 zapimir'>
-<B><A HREF=http://sypex.net/products/dumper/ STYLE="color: white; text-decoration: none;">Sypex Dumper Lite 1.0.8</A></B><IMG ID=GS WIDTH=1 HEIGHT=1 STYLE="visibility: hidden;"></TD>
+<B><A HREF=http://sypex.net/products/dumper/ STYLE="color: white; text-decoration: none;">Mysql Dumper 1.0.9</A></B><IMG ID=GS WIDTH=1 HEIGHT=1 STYLE="visibility: hidden;"></TD>
 </TR>
 <TR>
 <FORM NAME=skb METHOD=POST ACTION=dumper.php>
@@ -926,7 +927,7 @@ return <<<HTML
 <SPAN ID=body STYLE="display: none;">
 {$error}
 <FIELDSET>
-<LEGEND>Введите логин и пароль</LEGEND>
+<LEGEND>Enter login and password</LEGEND>
 <TABLE WIDTH=100% BORDER=0 CELLSPACING=0 CELLPADDING=2>
 <TR>
 <TD WIDTH=41%>Логин:</TD>
@@ -977,7 +978,7 @@ HTML;
 function tpl_backup_index(){
 return <<<HTML
 <CENTER>
-<H1>У вас нет прав для просмотра этого каталога</H1>
+<H1>You don't have permissions to list this dir</H1>
 </CENTER>
 
 HTML;
@@ -986,7 +987,7 @@ HTML;
 function tpl_error($error){
 return <<<HTML
 <FIELDSET>
-<LEGEND>Ошибка при подключении к БД</LEGEND>
+<LEGEND>Error connect to DB</LEGEND>
 <TABLE WIDTH=100% BORDER=0 CELLSPACING=0 CELLPADDING=2>
 <TR>
 <TD ALIGN=center>{$error}</TD>
@@ -1003,7 +1004,7 @@ function SXD_errorHandler($errno, $errmsg, $filename, $linenum, $vars) {
     $dt = date("Y.m.d H:i:s");
     $errmsg = addslashes($errmsg);
 
-	echo tpl_l("{$dt}<BR><B>Возникла ошибка!</B>", C_ERROR);
+	echo tpl_l("{$dt}<BR><B>Error was occured!</B>", C_ERROR);
 	echo tpl_l("{$errmsg} ({$errno})", C_ERROR);
 	echo tpl_enableBack();
 	die();
